@@ -16,9 +16,14 @@
   engineer then completed the plan. The handoff runtime refused an unsolicited
   acknowledgment as repeat work. Signing out the reviewer left the engineer
   signed in.
-- Codex credential, backup and end-to-end tests passed (85). Settings
-  tests passed (35), including concurrent sign-in panels. Typecheck, lint
-  and locale catalog validation passed.
+- The Codex driver, credential and backup suites passed (422). Settings
+  tests passed (35), including concurrent sign-in panels. Direct coordination,
+  ChatGPT-plan API and the new two-account end-to-end tests passed. Usage-limit
+  and authentication-session tests passed (29). Typecheck, lint and locale
+  catalog validation passed.
+- An unchanged working-folder test fails on this host when `rmSync` tries
+  to remove a directory symlink. The failure reproduced on its own in the
+  baseline-identical working-folder code and test.
 - Live Plus and Free verification is pending owner authentication in the
   disposable fixture. The scripted test does not prove live model entitlement
   or real-model behavior.
