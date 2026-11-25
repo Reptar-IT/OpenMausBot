@@ -40,7 +40,7 @@ const COPY: Record<AccountGroup, Record<"title" | "add" | "removeBody", LocaleKe
 /** What an account's menu offers. Only accounts added here can be removed; each provider's first account stays, and
  * ChatGPT's built-in rows (Codex, ChatGPT plan) can be hidden instead. */
 export function accountActions(group: AccountGroup, instance: InstanceInfo): { signOut: boolean; remove: boolean; hide: boolean } {
-  const remove = group === "claude" ? instance.instanceId !== "claude" && instance.claudeAccount?.isDefault !== true : instance.instanceId.startsWith("chatgpt-");
+  const remove = group === "claude" ? instance.instanceId !== "claude" && instance.claudeAccount?.isDefault !== true : (instance.instanceId.startsWith("chatgpt-") || instance.instanceId.startsWith("codex-account-"));
   return {
     signOut: accountState(instance) === "signedIn" && instance.authentication?.signOut === true && instance.snapshot.account?.method !== "api-key",
     remove,
@@ -329,6 +329,8 @@ export function AccountsCard({ group, accounts, advanced, bare = false }: { grou
   const installed = accounts.some((instance) => instance.snapshot.state === "available");
   const policy = accounts.find((instance) => instance.policy)?.policy;
   const noteId = useId();
+  const codexAvailable = accounts.some((instance) => instance.authentication?.method === "device-code" && instance.snapshot.state === "available");
+  const hasPlanAccount = accounts.some((instance) => instance.snapshot.chatgptPlan);
   return (
     <EngineCard instance={primary} summary={summaryFor(group, accounts)} bare={bare}>
       {policy && <p className="mb-3 text-[12px] leading-relaxed text-ink-secondary">
@@ -344,12 +346,15 @@ export function AccountsCard({ group, accounts, advanced, bare = false }: { grou
                 onSignInDone={() => setSigningIn((current) => current === instance.instanceId ? null : current)} />
             ))}
           </ul>
+          {group === "chatgpt" && codexAvailable && (
+            <AddAccount label={t("accounts.addCodex")} endpoint="/api/instances/codex-accounts" onAdded={setSigningIn} />
+          )}
           {!primary.snapshot.authenticationUnavailableReason && <>
             <AddAccount label={t(COPY[group].add)} endpoint={`/api/instances/${group}-accounts`} folder={group === "claude"}
               describedBy={group === "chatgpt" ? noteId : undefined} onAdded={setSigningIn} />
             {group === "chatgpt" && <p id={noteId} className="px-2 text-[12px] leading-relaxed text-ink-secondary">{t("accounts.addChatgptWorkspaceNote")}</p>}
           </>}
-          {group === "chatgpt" && <p data-codex-shared-setup className="px-2 text-[12px] leading-relaxed text-ink-secondary">{t("accounts.chatgptSharedSetupNote")}</p>}
+          {hasPlanAccount && <p data-codex-shared-setup className="px-2 text-[12px] leading-relaxed text-ink-secondary">{t("accounts.chatgptSharedSetupNote")}</p>}
         </div>
       )}
       {primary.snapshot.update && <EngineUpdateNotice update={primary.snapshot.update} instance={primary} className="mt-3" quiet />}
