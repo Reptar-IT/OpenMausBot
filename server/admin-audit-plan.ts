@@ -14,7 +14,7 @@ export interface AuditPlan {
   roomId?: string;
 }
 
-const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/claude-accounts", "claude"], ["/api/instances/chatgpt-accounts", "chatgpt"],
+const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/claude-accounts", "claude"], ["/api/instances/chatgpt-accounts", "chatgpt"], ["/api/instances/codex-accounts", "codex"],
   ["/api/instances/antigravity-accounts", "antigravity"]]);
 
 export function adminAuditPlan(method: string, path: string, sharedComputers: boolean): AuditPlan | null {

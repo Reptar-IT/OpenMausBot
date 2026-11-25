@@ -244,6 +244,9 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
           resolve();
         }, 10);
       });
+      for (const [name, content] of Object.entries((plan.expectFiles ?? {}) as Record<string, string>)) {
+        if (readFileSync(join(process.cwd(), name), "utf8") !== content) throw new Error(`Unexpected fixture file: ${name}`);
+      }
       if (typeof plan.progressAfterGate === "string") progress?.(plan.progressAfterGate);
       if (plan.delayMs) await new Promise(resolve => { delayTimer = setTimeout(resolve, plan.delayMs); });
       if (plan.fail && !resumed) throw new Error("Scripted addressed agent failure");

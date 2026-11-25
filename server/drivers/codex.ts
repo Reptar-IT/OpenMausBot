@@ -1,4 +1,5 @@
-import { decodeRoutedCodexConfig, managedCodexArgs, endpointCodexArgs, type CodexEndpointConfig } from "./codex-endpoint-config.ts";
+import { managedCodexArgs, endpointCodexArgs } from "./codex-endpoint-config.ts";
+import { applyCodexAccountHome, codexAccountHome, decodeCodexConfig, type CodexConfig } from "./codex-config.ts";
 export { managedCodexArgs, endpointCodexArgs } from "./codex-endpoint-config.ts";
 import { codexActionFailure } from "./codex-action-notice.ts";
 import { codexToolSurfaceArgs } from "./codex-tool-surface.ts";
@@ -71,31 +72,10 @@ import { assertToolScopeSupported } from "../../shared/tool-scope-support.ts";
 import { appMountFor, gateServer, mcpStdioServer } from "../mcp-gate-config.ts"; import { OWN_APPS_SERVER } from "../../shared/own-apps.ts";
 import { CALL_TOOL, DESCRIBE_TOOL, SEARCH_TOOL, directoryCallTarget } from "../mcp-directory.ts"; import { codexCommandOutput, codexPatchProgress } from "./tool-progress.ts";
 
+export type { CodexConfig } from "./codex-config.ts";
 export { decodeCodexSelection, readCodexModelCatalog, STATIC_CODEX_MODELS } from "./codex-catalog.ts";
 
 const DRIVER_KIND = "codex";
-
-export interface CodexConfig {
-  cli: string;
-  fullAuto: boolean;
-  authMode?: "chatgpt-plan";
-  managed?: CodexEndpointConfig;
-  endpoint?: CodexEndpointConfig;
-}
-
-function decodeConfig(raw: unknown): CodexConfig {
-  const o = (raw ?? {}) as Record<string, unknown>;
-  if (o.authMode !== undefined && o.authMode !== "chatgpt-plan") throw new Error("Unknown Codex sign-in mode.");
-  if (o.authMode && o.managed) throw new Error("ChatGPT plan and Company billing cannot be combined.");
-  if (o.endpoint && (o.authMode || o.managed)) throw new Error("Direct API, ChatGPT plan and Company billing cannot be combined.");
-  return {
-    cli: typeof o.cli === "string" ? o.cli : "codex",
-    fullAuto: o.fullAuto === true,
-    ...(o.authMode === "chatgpt-plan" ? { authMode: "chatgpt-plan" as const } : {}),
-    ...(o.endpoint ? { endpoint: decodeRoutedCodexConfig(o.endpoint as object, "Direct API") } : {}),
-    ...(o.managed && typeof o.managed === "object" ? { managed: decodeRoutedCodexConfig(o.managed) } : {}),
-  };
-}
 
 const PRIVATE_ENV_FAMILIES = ["OMB_GATE_CONFIG_", "OMB_REMOTE_MCP_CONFIG_"];
 const PROXY_LITERAL_ENV = ["NODE_USE_ENV_PROXY", "NO_PROXY", "no_proxy"];
@@ -209,18 +189,20 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     signInCommand: "codex login",
   },
   models: STATIC_CODEX_MODELS,
-  decodeConfig,
-  defaultConfig: () => decodeConfig({}),
+  decodeConfig: decodeCodexConfig,
+  defaultConfig: () => decodeCodexConfig({}),
 
   async create(input: DriverCreateInput<CodexConfig>): Promise<ProviderInstance> {
     const { instanceId, config } = input;
     const routed = config.endpoint ?? config.managed;
     const routedProvider = config.endpoint ? "openmaus_endpoint" : "openmaus_company";
     const plan = config.authMode === "chatgpt-plan";
+    const namedAccount = config.authMode === "codex-account";
     const planUnavailable = plan && (hostedWorkspaceConfigured() || cloudHomeConfigured())
       ? "ChatGPT plan sign-in for hosted Pro requires OpenAI's hosted-app approval. Use a Company model or API key until that integration is approved; the local desktop flow cannot be used here."
       : undefined;
     const planDirectory = join(DATA_DIR, "providers", "chatgpt-plan", createHash("sha256").update(instanceId).digest("hex"));
+    const accountHome = namedAccount ? codexAccountHome(instanceId) : null;
     const childEnv = (): Record<string, string | undefined> => {
       const env: Record<string, string | undefined> = {
         ...process.env,
@@ -238,6 +220,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         env.OPENMAUSBOT_CODEX_API_KEY = input.environment.OPENMAUSBOT_CODEX_API_KEY;
         env.CODEX_HOME = input.environment.CODEX_HOME;
       }
+      if (accountHome) applyCodexAccountHome(env, accountHome);
       if (plan) env.CODEX_HOME = join(planDirectory, "codex");
       return env;
     };
@@ -266,7 +249,11 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       } else {
         try {
           const resolved = await readCodexModelCatalog(catalogEnv, fetch, config.cli);
-          if (resolved.options.length) models = resolved; else unconfirmedModelCatalog(models);
+          const options = namedAccount ? resolved.options.filter((option) => !option.custom) : resolved.options;
+          if (options.length) models = namedAccount
+            ? { ...resolved, default: options.find((option) => option.id === resolved.default)?.id ?? options[0].id, options }
+            : resolved;
+          else unconfirmedModelCatalog(models);
         } catch { unconfirmedModelCatalog(models); }
       }
       try { writeStartupModelCache(instanceId, models); } catch {}
@@ -311,10 +298,14 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       } catch { return null; }
       return [`codex-login:${home}`, stored];
     };
-    const smallModelsUsable = () => !plan && loginMark() === null;
+    const smallModelsUsable = () => !plan && !namedAccount && loginMark() === null;
     const loginRefused = () => { const mark = loginMark(); if (mark) noteKeyRejected(...mark); };
     const loginAccepted = (mark = loginMark()) => { if (mark) noteKeyAccepted(...mark); };
     const loginRejected = () => { const mark = loginMark(); return mark !== null && keyRejected(...mark); };
+    const isNamedAccountSignedIn = async (env: ReturnType<typeof childEnv>) => {
+      const login = await readCodexLogin(config.cli, env);
+      return login.status === "signed-in" && !login.apiKey && !loginRejected();
+    };
     const authentication = new CodexDeviceAuthController({
       cli: config.cli,
       environment: childEnv,
@@ -403,7 +394,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         decodeCodexSelection(turn.model || models.default).modelProvider === OFFICIAL_CODEX_PROVIDER;
       const route: CodexRoute = plan ? "plan" : chatgptTurn ? "own" : "other";
       const hideRefusedModel = (raw: string) => hidePlanRefusedModel(turn.model, raw, route);
-      const signedOut = chatgptTurn && await loginCheck.check(childEnv()) === "missing";
+      if (namedAccount && !chatgptTurn) throw new Error("Select a ChatGPT model for this Codex account.");
+      const signedOut = namedAccount ? !await isNamedAccountSignedIn(childEnv())
+        : chatgptTurn && await loginCheck.check(childEnv()) === "missing";
       const authBridge = planAuth && await planRenewal.supported() ? await startPlanTokenBridge(() => planAuth.accessToken(), () => { assertPlanCurrent(); if (stopRequested) throw new Error("This task has ended."); }) : null;
       let turnConfigArgs: string[]; try { assertPlanCurrent(); if (active.has(threadId)) throw new Error("a turn is already running on this thread"); turnConfigArgs = codexTurnConfigArgs(turn, childEnv()); } catch (error) { authBridge?.close(); throw error; }
       const turnId = newId();
@@ -432,7 +425,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       };
       const launchAttempt = async (attempt: number): Promise<void> => {
         const env = childEnv();
-        const launchedLogin = chatgptTurn ? storedCodexLogin(env) : null; if (ownLogin) keepChatsOutOfCodexHistory(env, instanceId);
+        const launchedLogin = chatgptTurn ? storedCodexLogin(env) : null; if (ownLogin && !namedAccount) keepChatsOutOfCodexHistory(env, instanceId);
         if (authBridge) Object.assign(env, authBridge.env); else if (planToken) env.OPENMAUSBOT_CHATGPT_TOKEN = planToken;
         const appServerArgs = ["app-server", ...(plan ? chatgptPlanCodexArgs(!!authBridge) : config.endpoint ? endpointCodexArgs(config.endpoint) : config.managed ? managedCodexArgs(config.managed) : codexSelectedProviderArgs(env, turn.model)), ...codexToolSurfaceArgs(),
           // Native shell snapshots can restore variables the shell policy removed.
@@ -1429,7 +1422,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     return {
       state: "available",
       version,
-      authenticated,
+      authenticated: authenticated && !(namedAccount && login.apiKey),
       ...(login.apiKey ? { account: { method: "api-key" as const } } : email ? { account: { email } } : {}), // no ChatGPT sign-out
       update: await codexReleaseUpdate(version, config.cli),
       billing: "subscription",
@@ -1469,10 +1462,12 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       }
       providerArgs = managedCodexArgs(config.managed);
     }
+    if (namedAccount && !await isNamedAccountSignedIn(env)) throw new Error(codexNotSignedIn());
     const route = codexBackgroundRoute(models, smallModelsUsable(), options.fallback, openaiUnreachable);
     if (!route) { authBridge?.close(); throw new Error("Codex lists no model for background calls. Refresh models in Settings → AI → Providers, on Codex."); }
     try { return await runCodexBackgroundRoute(route, (id) => {
       const selection = planAuth || routed ? { model: id, modelProvider: null } : decodeCodexSelection(id);
+      if (namedAccount && selection.modelProvider !== OFFICIAL_CODEX_PROVIDER) throw new Error("Select a ChatGPT model for this Codex account.");
       return runCodexOneShot({
         spawn: spawnCli, kill: killCliTree, cli: config.cli, env, prompt, options,
         model: selection.model ?? id,
