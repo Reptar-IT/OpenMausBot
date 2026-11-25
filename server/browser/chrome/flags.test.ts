@@ -12,7 +12,8 @@ describe("Chrome's command line", () => {
   it("talks over the pipe and never opens a DevTools port or announces automation", () => {
     expect(headless[0]).toBe("--remote-debugging-pipe");
     expect(headless).toContain("--disable-blink-features=AutomationControlled");
-    for (const never of ["--enable-automation", "--no-sandbox", "--hide-scrollbars", "--disable-gpu", "--disable-extensions", "--disable-popup-blocking", "--disable-background-networking", "--disable-renderer-backgrounding"]) {
+    expect(headless).toEqual(expect.arrayContaining(["--disable-background-networking", "--disable-component-update", "--disable-sync"]));
+    for (const never of ["--enable-automation", "--no-sandbox", "--hide-scrollbars", "--disable-gpu", "--disable-extensions", "--disable-popup-blocking", "--disable-renderer-backgrounding"]) {
       expect(headless).not.toContain(never);
     }
     expect(headless.some((arg) => arg.startsWith("--remote-debugging-port"))).toBe(false);

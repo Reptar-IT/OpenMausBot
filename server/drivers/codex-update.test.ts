@@ -1,7 +1,10 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { codexReleaseUpdate, codexUpdateCommand } from "./codex-update.ts";
 
 const releases = vi.hoisted(() => ({ latest: "0.169.0" as string | null, pinned: "0.167.0" as string | undefined }));
+beforeEach(() => vi.stubEnv("OMB_CHECK_ENGINE_UPDATES", "1"));
+afterEach(() => vi.unstubAllEnvs());
+
 vi.mock("./codex-release.ts", async (original) => ({
   ...await original<typeof import("./codex-release.ts")>(),
   readLatestCodexRelease: async () => releases.latest,

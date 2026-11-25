@@ -118,3 +118,22 @@ export function registerManagedComposio({ brokerUrl, updateCredentials, fetchImp
     return credentials;
   });
 }
+
+
+export function managedComposioLifecycle({ enabled, brokerUrl, server, credentials, updateCredentials, log }) {
+  const sync = () => {
+    const proc = server();
+    if (!proc) return;
+    try {
+      proc.postMessage({ type: "openmausbot:managed-composio", access: managedComposioAccess(brokerUrl(), credentials()) });
+    } catch (error) {
+      log(`connected-apps credential sync failed: ${error?.message ?? error}`);
+    }
+  };
+  return {
+    sync,
+    checkIn() {
+      if (enabled()) void registerManagedComposio({ brokerUrl: brokerUrl(), updateCredentials, log }).finally(sync);
+    },
+  };
+}

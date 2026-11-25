@@ -123,10 +123,12 @@ export function codexCliOverrides(cli: string): { cli: string; overrides: string
   return { cli: quoted.join(" "), overrides };
 }
 
+export const CODEX_PRIVATE_ARGS = ["-c", "analytics.enabled=false", "-c", "feedback.enabled=false", "-c", "check_for_update_on_startup=false"];
+
 /** The launcher and argv for `app-server`: the user's overrides go first, so the driver's own
  * (guest confinement, tool surface) keep the last word. */
 export function codexLaunch(cli: string, appServerArgs: readonly string[]): [string, string[]] {
   const launch = codexCliOverrides(cli);
   const [subcommand, ...driverArgs] = appServerArgs;
-  return [launch.cli, [subcommand!, ...launch.overrides, ...driverArgs]];
+  return [launch.cli, [subcommand!, ...launch.overrides, ...driverArgs, ...CODEX_PRIVATE_ARGS]];
 }

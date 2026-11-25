@@ -89,17 +89,7 @@ jobs:
             "$res/cloudflared/cloudflared.exe" version | grep -Fq "cloudflared version 2026.10.3 " || {
               echo "::error::packaged cloudflared has the wrong version"; fail=1; }
           fi
-          [ -f "$res/app-update.yml" ] || { echo "::error::missing $res/app-update.yml"; fail=1; }
-          if [ -f "$res/app-update.yml" ]; then
-            grep -Eq '^repo: OpenMausBot$' "$res/app-update.yml" || {
-              echo "::error::app-update.yml does not point at milind-soni/OpenMausBot"; fail=1; }
-            # while the build is unsigned, a publisherName makes
-            # electron-updater reject every update as untrusted
-            if grep -q "publisherName" "$res/app-update.yml"; then
-              echo "::error::app-update.yml carries publisherName on an unsigned build"; fail=1
-            fi
-          fi
-          echo "--- app-update.yml ---"; cat "$res/app-update.yml" 2>/dev/null || true
+          [ ! -e "$res/app-update.yml" ] || { echo "::error::unexpected automatic update feed"; fail=1; }
           exit $fail
 
       # index.js EXISTING is not the same as index.js RUNNING. 0.1.24 shipped a
@@ -133,7 +123,5 @@ jobs:
           name: windows-installer
           path: |
             release/*.exe
-            release/*.exe.blockmap
-            release/latest.yml
           if-no-files-found: error
           retention-days: 14

@@ -1,3 +1,4 @@
+import { CODEX_PRIVATE_ARGS } from "./codex-process.ts";
 // Codex resolves its own effective account (keyring included): reading auth.json directly can label an
 // API-key or keyring login with an old file's email. Only the protocol's display email leaves here.
 import { homedir } from "node:os";
@@ -25,7 +26,7 @@ export async function codexAccountEmail(
   return new Promise((resolveEmail) => {
     let child: ReturnType<typeof spawnCli>;
     try {
-      child = spawnCli(cli, ["app-server"], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+      child = spawnCli(cli, ["app-server", ...CODEX_PRIVATE_ARGS], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
     } catch {
       resolveEmail(null);
       return;

@@ -3927,6 +3927,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
   });
 
   it("offers the exact stable release update command without blocking older Codex models", async () => {
+    vi.stubEnv("OMB_CHECK_ENGINE_UPDATES", "1");
     process.env.FAKE_CODEX_VERSION = "codex-cli 0.152.1";
     await create();
 
@@ -4010,6 +4011,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
   });
 
   it("shows no update card on My Cloud, whose Codex updates with the Cloud", async () => {
+    vi.stubEnv("OMB_CHECK_ENGINE_UPDATES", "1");
     expect(await codexReleaseUpdate("0.150.0", "codex", false)).toMatchObject({ title: "Update Codex to 0.156.1", command: "codex update" });
     expect(await codexReleaseUpdate("0.150.0", "codex", true)).toBeUndefined();
     expect(await codexReleaseUpdate("0.156.1", "codex", true)).toBeUndefined();

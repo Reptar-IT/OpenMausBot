@@ -351,6 +351,8 @@ desktop routing, cancellation, and computer authority cleanup.
 
 ## Evidence
 
+The [private-build network audit](../privacy-network.md) lists network destinations, data and authorization, and documents the isolated TCP fixture.
+
 The [Gemini speech fixture](gemini-speech.md) checks write-only credentials,
 voice selection and WAV synthesis against an offline provider in an isolated
 server, with manual steps for real Google access and playback.

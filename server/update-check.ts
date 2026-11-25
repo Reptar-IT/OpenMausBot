@@ -112,6 +112,7 @@ export function createUpdateChecker(options: {
   channel?: UpdateChannel;
   fetch?: typeof fetch;
   now?: () => number;
+  enabled?: boolean;
 }) {
   const fetchJson = options.fetch ?? fetch;
   const now = options.now ?? Date.now;
@@ -150,7 +151,7 @@ export function createUpdateChecker(options: {
   }
 
   return async function check(): Promise<UpdateCheck> {
-    if (options.install === "desktop" || options.install === "managed") return base();
+    if (options.enabled === false || options.install === "desktop" || options.install === "managed") return base();
     if (cached && now() - cached.at < CACHE_MS) return cached.result;
     inflight ??= (async () => {
       try {

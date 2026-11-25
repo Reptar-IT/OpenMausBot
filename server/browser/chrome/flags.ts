@@ -96,6 +96,9 @@ export function chromeArgs(input: ChromeFlagsInput): string[] {
     ...(headless ? ["--headless=new"] : []),
     "--no-first-run",
     "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-sync",
     "--disable-blink-features=AutomationControlled",
     `--window-size=${input.viewport ? `${Math.round(input.viewport.width)},${Math.round(input.viewport.height) + HEADLESS_CHROME_HEIGHT}` : WINDOW_SIZE}`,
   ];

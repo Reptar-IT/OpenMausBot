@@ -42,7 +42,7 @@ export function createUpdateCheckRoutes(deps: UpdateCheckRouteDeps): RouteHandle
 }
 
 export function serverUpdateChecker(where: { desktopManaged: boolean; managed: boolean }): () => Promise<UpdateCheck> {
-  return createUpdateChecker({ current: serverVersion(), install: installKind({ ...where, serverRoot: SERVER_ROOT }), channel: updateChannel() });
+  return createUpdateChecker({ current: serverVersion(), install: installKind({ ...where, serverRoot: SERVER_ROOT }), channel: updateChannel(), enabled: process.env.OMB_CHECK_UPSTREAM_RELEASES === "1" });
 }
 
 /** Both routes' parts for this server: one shared check, and the button where the install has one. */
@@ -55,8 +55,9 @@ export function updateRouteDeps(where: {
 }): UpdateCheckRouteDeps {
   const install = installKind({ ...where, serverRoot: SERVER_ROOT });
   const channel = updateChannel();
-  const check = createUpdateChecker({ current: serverVersion(), install, channel });
+  const enabled = process.env.OMB_CHECK_UPSTREAM_RELEASES === "1";
+  const check = createUpdateChecker({ current: serverVersion(), install, channel, enabled });
   const dir = process.env[SERVER_UPDATE_DIR_ENV]?.trim() || (install === "docker" ? SERVER_UPDATE_DIR : undefined);
-  const server = createServerUpdater({ dir, dataDir: where.dataDir, install, version: serverVersion(), check, activeTurns: where.activeTurns, followsStable: channel === "stable" });
+  const server = enabled ? createServerUpdater({ dir, dataDir: where.dataDir, install, version: serverVersion(), check, activeTurns: where.activeTurns, followsStable: channel === "stable" }) : undefined;
   return { check, server, actor: where.actor };
 }

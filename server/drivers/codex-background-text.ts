@@ -1,3 +1,4 @@
+import { CODEX_PRIVATE_ARGS } from "./codex-process.ts";
 // One tool-free `codex exec` call for background steps (memory upkeep, skill review): a fresh process,
 // no session saved, never a chat's thread. Isolation is all argv: `--ignore-user-config` (no MCP
 // servers, plugins, notify or profiles; still signed in from CODEX_HOME), tools off, a read-only
@@ -118,6 +119,7 @@ export function codexBackgroundArgs(input: CodexBackgroundArgsInput): string[] {
     ...input.providerArgs,
     ...codexToolSurfaceArgs(),
     ...BACKGROUND_FEATURES_OFF.flatMap((feature) => ["-c", `features.${feature}=false`]),
+    ...CODEX_PRIVATE_ARGS,
     "-",
   ];
 }

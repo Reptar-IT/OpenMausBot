@@ -223,14 +223,14 @@ function message(error: unknown): string {
 let store: ModelManifestStore | undefined;
 
 export function modelManifest(): ModelManifestStore {
-  return store ??= new ModelManifestStore({ dataDir: DATA_DIR });
+  return store ??= new ModelManifestStore({ dataDir: DATA_DIR, env: { [MANIFEST_DISABLE_ENV]: "1" } });
 }
 
 let backgroundTimer: ReturnType<typeof setInterval> | undefined;
 
 /** A sleeping machine's timers pause; the on-demand refresh covers the picker when it wakes. */
 export function startModelManifestRefresh(): void {
-  if (backgroundTimer) return;
+  if (backgroundTimer || modelManifest().fetchDisabled) return;
   modelManifest().refreshInBackground();
   backgroundTimer = setInterval(() => modelManifest().refreshInBackground(), MANIFEST_TTL_MS);
   backgroundTimer.unref();
