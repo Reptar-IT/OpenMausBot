@@ -23,16 +23,19 @@ export type SendOutcome =
 /** OMB_BUG_REPORT_URL (an https address, or http on this machine's loopback, for fixtures), else a Cloud home's own
  * Admin origin, else the staging or production Cloud. */
 export function bugReportEndpoint(env: NodeJS.ProcessEnv, cloudOrigin?: string | null): string {
+  return explicitBugReportEndpoint(env) ?? `${(cloudOrigin ?? (env.OMB_CLOUD_STAGING === "1" ? STAGING_CLOUD_ORIGIN : PRODUCTION_CLOUD_ORIGIN)).replace(/\/+$/, "")}${BUG_REPORT_PATH}`;
+}
+
+function explicitBugReportEndpoint(env: NodeJS.ProcessEnv): string | null {
   const explicit = env.OMB_BUG_REPORT_URL?.trim();
   if (explicit) {
     try {
       const url = new URL(explicit);
       const loopback = url.protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(url.hostname);
       if ((url.protocol === "https:" || loopback) && !url.username && !url.password) return url.href;
-    } catch { /* not an address: the default below */ }
+    } catch {}
   }
-  const origin = cloudOrigin ?? (env.OMB_CLOUD_STAGING === "1" ? STAGING_CLOUD_ORIGIN : PRODUCTION_CLOUD_ORIGIN);
-  return `${origin.replace(/\/+$/, "")}${BUG_REPORT_PATH}`;
+  return null;
 }
 
 async function boundedJson(response: Response): Promise<Record<string, unknown>> {
@@ -139,3 +142,12 @@ export async function askReportStatus(endpoint: string, question: ReportStatusQu
 
 export const devsStatusAsker = (reportEndpoint: string, home: ReportStatusHome | null, fetcher: typeof fetch = fetch) =>
   (question: ReportStatusQuestion) => askReportStatus(bugReportStatusEndpoint(reportEndpoint), question, home, fetcher);
+
+
+export function privateReportTransport(env: NodeJS.ProcessEnv, home: (ReportStatusHome & { adminOrigin: string }) | null) {
+  const endpoint = explicitBugReportEndpoint(env) ?? (env.OMB_ENABLE_MANAGED_SERVICES === "1" ? bugReportEndpoint(env, home?.adminOrigin) : null);
+  return endpoint ? { send: devsReportSender(endpoint), askStatus: devsStatusAsker(endpoint, home) } : {
+    send: async (): Promise<SendOutcome> => ({ ok: false, retry: false, why: "refused", detail: "Developer reporting is disabled." }),
+    askStatus: async () => null,
+  };
+}

@@ -4,6 +4,7 @@ import {
   accessSync,
   closeSync,
   constants,
+  existsSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -71,13 +72,8 @@ function requirePackageType(resources, label, expected) {
   }
 }
 
-function requireUpdaterTarget(resources, label) {
-  const updateFile = path.join(resources, "app-update.yml");
-  requireFile(updateFile);
-  const update = readFileSync(updateFile, "utf8");
-  if (!/^owner: milind-soni$/m.test(update) || !/^repo: OpenMausBot$/m.test(update)) {
-    fail(`${label} app-update.yml does not point at milind-soni/OpenMausBot`);
-  }
+function requireNoUpdaterTarget(resources, label) {
+  if (existsSync(path.join(resources, "app-update.yml"))) fail(`${label} contains an automatic update feed`);
 }
 
 function sha256(file) {
@@ -418,7 +414,7 @@ for (const forbidden of ["speech-helper", "cua-driver", "cua-sdk"]) {
 }
 const unpackedCuaHashes = verifyCuaResources(resources, "linux-unpacked");
 const unpackedCloudflaredHash = verifyCloudflaredResources(resources, "linux-unpacked");
-requireUpdaterTarget(resources, "linux-unpacked");
+requireNoUpdaterTarget(resources, "linux-unpacked");
 
 const fields = execFileSync(
   "dpkg-deb",
@@ -442,7 +438,7 @@ function verifySystemPackage(extracted, label, packageType) {
   const packageResources = path.join(appRoot, "resources");
   // Routes the in-app updater to the package-manager hand-off.
   requirePackageType(packageResources, label, packageType);
-  requireUpdaterTarget(packageResources, label);
+  requireNoUpdaterTarget(packageResources, label);
   const packageHashes = verifyCuaResources(packageResources, label);
   const packageCloudflaredHash = verifyCloudflaredResources(packageResources, label);
   if (packageCloudflaredHash !== unpackedCloudflaredHash) {
@@ -562,7 +558,7 @@ try {
   const appImageResources = path.join(squashRoot, "resources");
   // No marker: the AppImage keeps the in-place restart-to-update path.
   requirePackageType(appImageResources, "AppImage", null);
-  requireUpdaterTarget(appImageResources, "AppImage");
+  requireNoUpdaterTarget(appImageResources, "AppImage");
   // Depending on the pinned appimagetool runtime, SquashFS directories are
   // emitted as root:root 0755 or 0775. Require one mode consistently across
   // the reviewed resource tree. The app never executes through that path:

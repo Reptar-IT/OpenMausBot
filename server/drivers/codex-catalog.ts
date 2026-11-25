@@ -1,3 +1,4 @@
+import { CODEX_PRIVATE_ARGS } from "./codex-process.ts";
 // Codex model catalog: official ChatGPT rows stay in the main picker; everything wired in ~/.codex is
 // tagged `custom`. `codex app-server` thread/start takes `model` and `modelProvider` separately.
 import { readdirSync, readFileSync } from "node:fs";
@@ -91,7 +92,7 @@ export function readCodexAppServerModelCatalog(
   timeoutMs = 8_000,
 ): Promise<ModelCatalog | null> {
   return new Promise((resolve) => {
-    const child = spawnCli(cli, ["app-server"], {
+    const child = spawnCli(cli, ["app-server", ...CODEX_PRIVATE_ARGS], {
       cwd: homedir(),
       env,
       stdio: ["pipe", "pipe", "pipe"],

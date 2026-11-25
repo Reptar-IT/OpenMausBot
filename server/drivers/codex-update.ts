@@ -21,10 +21,9 @@ export function codexUpdateCommand(cli: string, platform: NodeJS.Platform = proc
 }
 
 export async function codexReleaseUpdate(version: string, cli: string, onCloud = cloudHomeConfigured()): Promise<ProviderSnapshot["update"] | undefined> {
+  if (process.env.OMB_CHECK_ENGINE_UPDATES !== "1" || onCloud) return undefined;
   const latest = await readLatestCodexRelease();
   if (!latest || !codexVersionBehind(version, latest)) return undefined;
-  // My Cloud's Codex comes with the image, in a folder nobody can write to, and updates with the Cloud: nothing to offer there.
-  if (onCloud) return undefined;
   const pinned = pinnedNpmVersion("codex");
   const needsTerminal = pinned !== undefined && codexVersionBehind(pinned, latest);
   return {

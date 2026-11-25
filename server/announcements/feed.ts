@@ -225,5 +225,5 @@ function message(error: unknown): string {
 let store: AnnouncementStore | undefined;
 
 export function announcementStore(): AnnouncementStore {
-  return store ??= new AnnouncementStore({ dataDir: DATA_DIR });
+  return store ??= new AnnouncementStore({ dataDir: DATA_DIR, env: { [ANNOUNCEMENTS_DISABLE_ENV]: "1" } });
 }
