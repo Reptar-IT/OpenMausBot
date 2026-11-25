@@ -324,7 +324,8 @@ export function AddAccount({ label, endpoint, extra, folder: offerFolder = false
 
 /** One card for a provider's accounts: who is signed in, one button for whoever is not, and one way to add another. */
 export function AccountsCard({ group, accounts, advanced, bare = false }: { group: AccountGroup; accounts: InstanceInfo[]; advanced?: ReactNode; bare?: boolean }) {
-  const [signingIn, setSigningIn] = useState<string | null>(null);
+  const [signingIn, setSigningIn] = useState<string[]>([]);
+  const startSignIn = (instanceId: string) => setSigningIn((current) => current.includes(instanceId) ? current : [...current, instanceId]);
   const primary = accounts[0]!;
   const installed = accounts.some((instance) => instance.snapshot.state === "available");
   const policy = accounts.find((instance) => instance.policy)?.policy;
@@ -341,17 +342,17 @@ export function AccountsCard({ group, accounts, advanced, bare = false }: { grou
           <ul data-accounts={group} className="divide-y divide-hairline/40 rounded-xl border border-hairline/50 bg-panel/40">
             {accounts.map((instance) => (
               <AccountRow key={instance.instanceId} group={group} instance={instance}
-                signingIn={signingIn === instance.instanceId}
-                onSignIn={() => setSigningIn(instance.instanceId)}
-                onSignInDone={() => setSigningIn((current) => current === instance.instanceId ? null : current)} />
+                signingIn={signingIn.includes(instance.instanceId)}
+                onSignIn={() => startSignIn(instance.instanceId)}
+                onSignInDone={() => setSigningIn((current) => current.filter((id) => id !== instance.instanceId))} />
             ))}
           </ul>
           {group === "chatgpt" && codexAvailable && (
-            <AddAccount label={t("accounts.addCodex")} endpoint="/api/instances/codex-accounts" onAdded={setSigningIn} />
+            <AddAccount label={t("accounts.addCodex")} endpoint="/api/instances/codex-accounts" onAdded={startSignIn} />
           )}
           {!primary.snapshot.authenticationUnavailableReason && <>
             <AddAccount label={t(COPY[group].add)} endpoint={`/api/instances/${group}-accounts`} folder={group === "claude"}
-              describedBy={group === "chatgpt" ? noteId : undefined} onAdded={setSigningIn} />
+              describedBy={group === "chatgpt" ? noteId : undefined} onAdded={startSignIn} />
             {group === "chatgpt" && <p id={noteId} className="px-2 text-[12px] leading-relaxed text-ink-secondary">{t("accounts.addChatgptWorkspaceNote")}</p>}
           </>}
           {hasPlanAccount && <p data-codex-shared-setup className="px-2 text-[12px] leading-relaxed text-ink-secondary">{t("accounts.chatgptSharedSetupNote")}</p>}

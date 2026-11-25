@@ -504,7 +504,14 @@ const playRoomPlanTurn = (msg: any, planPath: string) => {
   // Loaded only in this mode: other tests run a copy of this file on its own.
   void import("./room-handoff-agent.ts").then(({ runRoomHandoffAgent }) => runRoomHandoffAgent(process.argv.slice(2), planPath, { message: { content: text } },
     // A later turn of one process carries on the thread it has loaded, with no thread/resume.
-    { integration, system: developerInstructions, evidence: { resumedThread: resumedThread ?? (turnsStarted > 1 ? nativeThreadId : null) } }))
+    { integration, system: developerInstructions, evidence: {
+      resumedThread: resumedThread ?? (turnsStarted > 1 ? nativeThreadId : null),
+      cwd: process.cwd(),
+      codexHome: process.env.CODEX_HOME,
+      sqliteHome: process.env.CODEX_SQLITE_HOME,
+      model: (calls.findLast(call => call.method === "thread/start" || call.method === "thread/resume")?.params as { model?: string } | undefined)?.model,
+      effort: msg.params?.effort,
+    } }))
     .then((reply) => {
       notify("item/completed", { item: { id: "m1", type: "agentMessage", text: reply } });
       notify("turn/completed", { turn: { status: "completed" } });
