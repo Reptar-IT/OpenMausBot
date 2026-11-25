@@ -1,4 +1,5 @@
-import { decodeRoutedCodexConfig, managedCodexArgs, endpointCodexArgs, type CodexEndpointConfig } from "./codex-endpoint-config.ts";
+import { managedCodexArgs, endpointCodexArgs } from "./codex-endpoint-config.ts";
+import { applyCodexAccountHome, codexAccountHome, decodeCodexConfig, type CodexConfig } from "./codex-config.ts";
 export { managedCodexArgs, endpointCodexArgs } from "./codex-endpoint-config.ts";
 import { codexActionFailure } from "./codex-action-notice.ts";
 import { codexToolSurfaceArgs } from "./codex-tool-surface.ts";
@@ -71,31 +72,10 @@ import { assertToolScopeSupported } from "../../shared/tool-scope-support.ts";
 import { appMountFor, gateServer, mcpStdioServer } from "../mcp-gate-config.ts"; import { OWN_APPS_SERVER } from "../../shared/own-apps.ts";
 import { CALL_TOOL, DESCRIBE_TOOL, SEARCH_TOOL, directoryCallTarget } from "../mcp-directory.ts"; import { codexCommandOutput, codexPatchProgress } from "./tool-progress.ts";
 
+export type { CodexConfig } from "./codex-config.ts";
 export { decodeCodexSelection, readCodexModelCatalog, STATIC_CODEX_MODELS } from "./codex-catalog.ts";
 
 const DRIVER_KIND = "codex";
-
-export interface CodexConfig {
-  cli: string;
-  fullAuto: boolean;
-  authMode?: "chatgpt-plan" | "codex-account";
-  managed?: CodexEndpointConfig;
-  endpoint?: CodexEndpointConfig;
-}
-
-function decodeConfig(raw: unknown): CodexConfig {
-  const o = (raw ?? {}) as Record<string, unknown>;
-  if (o.authMode !== undefined && o.authMode !== "chatgpt-plan" && o.authMode !== "codex-account") throw new Error("Unknown Codex sign-in mode.");
-  if (o.authMode && o.managed) throw new Error("ChatGPT plan and Company billing cannot be combined.");
-  if (o.endpoint && (o.authMode || o.managed)) throw new Error("Direct API, ChatGPT plan and Company billing cannot be combined.");
-  return {
-    cli: typeof o.cli === "string" ? o.cli : "codex",
-    fullAuto: o.fullAuto === true,
-    ...(o.authMode ? { authMode: o.authMode } : {}),
-    ...(o.endpoint ? { endpoint: decodeRoutedCodexConfig(o.endpoint as object, "Direct API") } : {}),
-    ...(o.managed && typeof o.managed === "object" ? { managed: decodeRoutedCodexConfig(o.managed) } : {}),
-  };
-}
 
 const PRIVATE_ENV_FAMILIES = ["OMB_GATE_CONFIG_", "OMB_REMOTE_MCP_CONFIG_"];
 const PROXY_LITERAL_ENV = ["NODE_USE_ENV_PROXY", "NO_PROXY", "no_proxy"];
@@ -209,8 +189,8 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     signInCommand: "codex login",
   },
   models: STATIC_CODEX_MODELS,
-  decodeConfig,
-  defaultConfig: () => decodeConfig({}),
+  decodeConfig: decodeCodexConfig,
+  defaultConfig: () => decodeCodexConfig({}),
 
   async create(input: DriverCreateInput<CodexConfig>): Promise<ProviderInstance> {
     const { instanceId, config } = input;
@@ -222,8 +202,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       ? "ChatGPT plan sign-in for hosted Pro requires OpenAI's hosted-app approval. Use a Company model or API key until that integration is approved; the local desktop flow cannot be used here."
       : undefined;
     const planDirectory = join(DATA_DIR, "providers", "chatgpt-plan", createHash("sha256").update(instanceId).digest("hex"));
-    const accountHome = namedAccount ? join(DATA_DIR, "providers", "codex-accounts", createHash("sha256").update(instanceId).digest("hex")) : null;
-    if (accountHome) mkdirSync(accountHome, { recursive: true, mode: 0o700 });
+    const accountHome = namedAccount ? codexAccountHome(instanceId) : null;
     const childEnv = (): Record<string, string | undefined> => {
       const env: Record<string, string | undefined> = {
         ...process.env,
@@ -241,13 +220,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         env.OPENMAUSBOT_CODEX_API_KEY = input.environment.OPENMAUSBOT_CODEX_API_KEY;
         env.CODEX_HOME = input.environment.CODEX_HOME;
       }
-      if (accountHome) {
-        delete env.CODEX_ACCESS_TOKEN;
-        delete env.CODEX_API_KEY;
-        delete env.OPENAI_BASE_URL;
-        env.CODEX_HOME = accountHome;
-        env.CODEX_SQLITE_HOME = accountHome;
-      }
+      if (accountHome) applyCodexAccountHome(env, accountHome);
       if (plan) env.CODEX_HOME = join(planDirectory, "codex");
       return env;
     };
